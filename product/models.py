@@ -1,3 +1,6 @@
+from io import BytesIO
+
+from PIL.Image import Image
 from ckeditor_uploader.fields import RichTextUploadingField
 from django.contrib.auth.models import User
 from django.db import models
@@ -10,6 +13,7 @@ from django.utils.safestring import mark_safe
 from mptt.fields import TreeForeignKey
 from mptt.models import MPTTModel
 from django_jalali.db import models as jmodels
+from stripe import File
 
 
 class Category(MPTTModel):
@@ -17,7 +21,8 @@ class Category(MPTTModel):
         ('True', 'True'),
         ('False', 'False'),
     )
-    parent = TreeForeignKey('self', blank=True, null=True, related_name='children', on_delete=models.CASCADE,verbose_name='دسته والد')
+    parent = TreeForeignKey('self', blank=True, null=True, related_name='children', on_delete=models.CASCADE,
+                            verbose_name='دسته والد')
     title = models.CharField(max_length=50, verbose_name='عنوان')
     keywords = models.CharField(max_length=255, verbose_name='کلید واژه')
     description = models.TextField(max_length=255, verbose_name='توضیحات')
@@ -63,6 +68,7 @@ class Product(models.Model):
     short_description = RichTextUploadingField(verbose_name='توضیحات کوتاه')
     description = RichTextUploadingField(verbose_name='توضیحات')
     image = models.ImageField(upload_to='images/Product/%Y/%m/%d/', null=False, verbose_name='تصویر')
+    thumbnail = models.ImageField(upload_to='uploads/', blank=True, null=True)
     slider_image = models.ImageField(upload_to='images/Slider/%Y/%m/%d/', null=False, verbose_name='تصویر اسلایدر')
     price = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name='قیمت')
     amount = models.PositiveIntegerField(default=0, verbose_name='مقدار')
@@ -73,6 +79,9 @@ class Product(models.Model):
     status = models.CharField(max_length=10, choices=STATUS, verbose_name='وضعیت')
     create_at = jmodels.jDateField(auto_now_add=True)
     update_at = jmodels.jDateField(auto_now=True, verbose_name='به روز شده در')
+
+    class Meta:
+        ordering = ('-date_added',)
 
     def __str__(self):
         return self.title
@@ -88,6 +97,34 @@ class Product(models.Model):
     def get_absolute_url(self):
         return f'/{self.slug}/'
 
+    def get_image(self):
+        if self.image:
+            return 'http://127.0.0.1:8000' + self.image.url
+        return ''
+
+    def get_thumbnail(self):
+        if self.thumbnail:
+            return 'http://127.0.0.1:8000' + self.thumbnail.url
+        else:
+            if self.image:
+                self.thumbnail = self.make_thumbnail(self.image)
+                self.save()
+
+                return 'http://127.0.0.1:8000' + self.thumbnail.url
+            else:
+                return ''
+
+    def make_thumbnail(self, image, size=(300, 200)):
+        img = Image.open(image)
+        img.convert('RGB')
+        img.thumbnail(size)
+
+        thumb_io = BytesIO()
+        img.save(thumb_io, 'JPEG', quality=85)
+
+        thumbnail = File(thumb_io, name=image.name)
+
+        return thumbnail
 
     class Meta:
         verbose_name = 'محصول'

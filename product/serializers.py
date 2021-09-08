@@ -23,5 +23,6 @@ class ProductSerializer(serializers.ModelSerializer):
             "slug",
             "status",
             "get_absolute_url",
+            "get_thumbnail",
             "image_tag",
         )
